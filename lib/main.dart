@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:async';
@@ -5,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() {
@@ -42,6 +44,29 @@ class DrawPage extends StatefulWidget {
 class _DrawPageState extends State<DrawPage> {
   final ImagePicker _picker = ImagePicker();
   ui.Image? image;
+  Uint8List? bytes;
+
+  ui.Image? placeholder;
+
+  /// 加载本地图片文件(Bundle资源)
+  void loadBundleImage() async {
+    // final bundlePath = 'images/YUYUAN.JPG';
+    final bundlePath = 'images/48224093.JPG';
+    _loadBundleImage(bundlePath);
+  }
+
+  void _loadBundleImage(String bundlePath) async {
+    try {
+      final bytes = await rootBundle.load(bundlePath);
+      final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+      final frameInfo = await codec.getNextFrame();
+      placeholder = frameInfo.image;
+      rootBundle.evict(bundlePath);
+      setState(() {});
+    } catch (e) {
+      print(e);
+    }
+  }
 
   drawImage() async {
     final imageFile =
@@ -49,46 +74,53 @@ class _DrawPageState extends State<DrawPage> {
     if (imageFile == null) {
       return;
     }
-    Uint8List bytes = await imageFile.readAsBytes();
 
-    final Completer<ui.Image> completer = Completer();
-    ui.decodeImageFromList(bytes, (ui.Image img) {
-      return completer.complete(img);
-    });
-    final img = await completer.future;
-    // img.dispose();
-    image?.dispose();
-    image = img;
+    {
+      final bytes = await imageFile.readAsBytes();
+
+      final Completer<ui.Image> completer = Completer();
+      ui.decodeImageFromList(bytes, (ui.Image img) {
+        return completer.complete(img);
+      });
+      final img = await completer.future;
+
+      image?.dispose();
+      image = img;
+    }
 
     setState(() {});
   }
 
   @override
+  void initState() {
+    super.initState();
+
+    loadBundleImage();
+  }
+
+  @override
   void dispose() {
     image?.dispose();
+    placeholder?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final image = this.image ?? placeholder;
     return Scaffold(
       body: Column(
         children: [
           Container(
             width: 375,
-            height: 375,
+            height: 200,
             child: image == null
                 ? null
                 : RepaintBoundary(
                     child: ClipRect(
                       child: CustomPaint(
-                        painter: MyPainter(image!),
-                        size: Size(375, 375),
-                        // child: Container(
-                        //   width: 50,
-                        //   height: 50,
-                        //   color: Colors.green,
-                        // ),
+                        painter: MyPainter(image, image, image),
+                        size: Size(375, 200),
                       ),
                     ),
                   ),
@@ -120,8 +152,10 @@ int i = 0;
 
 class MyPainter extends CustomPainter {
   final ui.Image pickImage;
+  final ui.Image img1;
+  final ui.Image img2;
 
-  MyPainter(this.pickImage);
+  MyPainter(this.pickImage, this.img1, this.img2);
 
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
@@ -167,6 +201,26 @@ class MyPainter extends CustomPainter {
         ui.Rect.fromLTWH(
             0, 0, pickImage.width.toDouble(), pickImage.height.toDouble()),
         ui.Rect.fromLTWH(10, 10, size.width - 20, size.height - 20),
+        Paint()
+          ..invertColors = false
+          ..isAntiAlias = false
+          ..blendMode = ui.BlendMode.srcATop);
+
+    canvas.drawImageRect(
+        img1,
+        ui.Rect.fromLTWH(
+            0, 0, pickImage.width.toDouble(), pickImage.height.toDouble()),
+        ui.Rect.fromLTWH(20, 20, size.width - 40, size.height - 40),
+        Paint()
+          ..invertColors = false
+          ..isAntiAlias = false
+          ..blendMode = ui.BlendMode.srcATop);
+
+    canvas.drawImageRect(
+        img2,
+        ui.Rect.fromLTWH(0, 0, min(100.0, pickImage.width.toDouble()),
+            min(100.0, pickImage.height.toDouble())),
+        ui.Rect.fromLTWH(30, 30, size.width - 60, size.height - 60),
         Paint()
           ..invertColors = false
           ..isAntiAlias = false
